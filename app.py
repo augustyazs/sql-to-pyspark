@@ -3,10 +3,9 @@ import os
 import streamlit as st
 import base64
 from pathlib import Path
-from models.schemas import ColumnMapping, DbtConventions
+from models.schemas import DbtConventions
 from ui.components import (
     render_sas_preview,
-    render_mapping_preview,
     render_pipeline_steps,
     render_analyzer_detail,
     render_resolver_detail,
@@ -216,7 +215,7 @@ def _waiting_placeholder(label: str):
     )
 
 
-def _run_pipeline_and_store(sas_code, mapping_raw, progress_slot, source_name):
+def _run_pipeline_and_store(sql_code, progress_slot, source_name):
     st.session_state.run_error   = None
     st.session_state.final_state = None
     st.session_state.cost_data   = None
@@ -224,20 +223,12 @@ def _run_pipeline_and_store(sas_code, mapping_raw, progress_slot, source_name):
     st.session_state.pipeline_steps = []
     st.session_state.write_output_status = "pending"
 
-    col_mappings = []
-    if mapping_raw:
-        try:
-            col_mappings = [ColumnMapping(**e) for e in json.loads(mapping_raw)]
-        except Exception as e:
-            st.session_state.run_error = f"Failed to parse mapping file: {e}"
-            return
-
     conventions = DbtConventions()
 
     with st.spinner("Running pipeline…"):
         final_state, cost_data = run_pipeline(
-            sas_code=sas_code,
-            mappings=col_mappings,
+            sas_code=sql_code,
+            mappings=[],
             conventions=conventions,
             progress_slot=progress_slot,
             source_name=source_name or "generated_procedure.sql",
@@ -275,28 +266,16 @@ with st.sidebar:
     st.subheader("Source Control")
     source_platform = st.selectbox("Platform", ["GitHub", "Bitbucket"], key="source_platform")
     repo_name = st.selectbox("Repository", [
-        "hpp-analytics/sas-to-dbt",
+        "augustyazs/sql-to-pyspark",
         "hpp-analytics/dx-data-pipeline",
         "hpp-analytics/rx-etl",
     ], key="repo_name")
     folder_name = st.selectbox("Input Folder", [
-        "sas_scripts_input_20260301",
-        "sas_scripts_input_20260215",
-        "sas_scripts_input_20260128",
+        "oracle_stored_procedures",
+        "oracle_sql_inputs",
+        "migration_inputs",
     ], key="folder_name")
     st.caption(f"📁 {source_platform} / {repo_name} / {folder_name}")
-
-    st.divider()
-    st.subheader("Output")
-    output_platform = st.selectbox("Platform", ["GitHub", "Bitbucket"], key="output_platform")
-    output_repo = st.selectbox("Repository", [
-        "hpp-analytics/dbt-pharmacy-models",
-        "hpp-analytics/dbt-rx-warehouse",
-        "hpp-analytics/sas-to-dbt",
-    ], key="output_repo")
-    output_branch = st.selectbox("Branch",
-        ["feature/sas-migration", "develop", "main"], key="output_branch")
-    st.caption(f"📦 {output_platform} / {output_repo} / {output_branch}")
 
     st.divider()
     st.subheader("About")
@@ -325,7 +304,6 @@ st.markdown(f"""
 
 # ── INPUTS ────────────────────────────────────────────────────────────────────
 SAS_DIR     = INPUTS_DIR / "oracle_procedures"
-MAPPING_DIR = INPUTS_DIR / "column_mapping"
 LEGACY_SQL_DIR = Path(__file__).parent / "Oracle stored procedures"
 
 def get_sas_files():
@@ -351,57 +329,33 @@ def _read_sql_file(filename: str) -> str:
                 continue
     return ""
 
-def get_mapping_files():
-    if MAPPING_DIR.exists():
-        return sorted([f.name for f in MAPPING_DIR.glob("*.json")] +
-                      [f.name for f in MAPPING_DIR.glob("*.csv")])
-    return []
-
 st.header("📂 Inputs")
 sas_code    = None
-mapping_raw = None
 source_name = None
 
 tab_select, tab_upload = st.tabs(["Select from Git Repo", "Upload Files"])
 with tab_select:
-    c1, c2 = st.columns(2)
-    with c1:
-        sas_files = get_sas_files()
-        if sas_files:
-            sel = st.selectbox("Select Oracle Stored Procedure (.sql)", ["-- select --"] + sas_files, key="sas_select")
-            if sel != "-- select --":
-                sas_code = _read_sql_file(sel)
-                source_name = sel
-        else:
-            st.info("No .sql files found in inputs/oracle_procedures/")
-    with c2:
-        map_files = get_mapping_files()
-        if map_files:
-            sel = st.selectbox("Select Column Mapping", ["-- select --"] + map_files, key="map_select")
-            if sel != "-- select --":
-                mapping_raw = (MAPPING_DIR / sel).read_text(encoding="utf-8")
-        else:
-            st.info("No .json mapping files found in inputs/")
+    sas_files = get_sas_files()
+    if sas_files:
+        sel = st.selectbox("Select Oracle Stored Procedure (.sql)", ["-- select --"] + sas_files, key="sas_select")
+        if sel != "-- select --":
+            sas_code = _read_sql_file(sel)
+            source_name = sel
+    else:
+        st.info("No .sql files found in inputs/oracle_procedures/")
 
 with tab_upload:
-    c1, c2 = st.columns(2)
-    with c1:
-        up = st.file_uploader("Upload Oracle Stored Procedure", type=["sql", "txt"], key="sas_upload")
-        if up:
-            source_name = up.name
-            for enc in ["utf-8", "utf-8-sig", "latin-1", "cp1252"]:
-                try:
-                    sas_code = up.getvalue().decode(enc)
-                    if sas_code.strip(): break
-                except (UnicodeDecodeError, ValueError):
-                    continue
-    with c2:
-        up = st.file_uploader("Upload Column Mapping", type=["json", "csv"], key="mapping_upload")
-        if up:
-            mapping_raw = up.getvalue().decode("utf-8")
+    up = st.file_uploader("Upload Oracle Stored Procedure", type=["sql", "txt"], key="sas_upload")
+    if up:
+        source_name = up.name
+        for enc in ["utf-8", "utf-8-sig", "latin-1", "cp1252"]:
+            try:
+                sas_code = up.getvalue().decode(enc)
+                if sas_code.strip(): break
+            except (UnicodeDecodeError, ValueError):
+                continue
 
 if sas_code:    render_sas_preview(sas_code)
-if mapping_raw: render_mapping_preview(mapping_raw)
 
 # ── RUN BUTTON ────────────────────────────────────────────────────────────────
 has_api_key = bool(st.session_state.api_key_input or secret_api_key)
@@ -535,4 +489,4 @@ with col_main:
 
 # ── Run pipeline AFTER layout is rendered ────────────────────────────────────
 if run_clicked and can_run:
-    _run_pipeline_and_store(sas_code, mapping_raw, progress_slot, source_name)
+    _run_pipeline_and_store(sas_code, progress_slot, source_name)
