@@ -39,6 +39,13 @@ if "write_output_status" not in st.session_state:
 if "pipeline_triggered" not in st.session_state:
     st.session_state.pipeline_triggered = False
 
+secret_api_key = ""
+try:
+    secret_api_key = st.secrets.get("OPENAI_API_KEY", "")
+except Exception:
+    secret_api_key = ""
+if secret_api_key and "OPENAI_API_KEY" not in os.environ:
+    os.environ["OPENAI_API_KEY"] = secret_api_key
 
 # ── PAGE CONFIG ───────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -261,6 +268,8 @@ with st.sidebar:
     st.session_state.api_key_input = api_key_input
     if api_key_input:
         os.environ["OPENAI_API_KEY"] = api_key_input
+    elif secret_api_key:
+        st.caption("Using OPENAI_API_KEY from Streamlit secrets.")
 
     st.divider()
     st.subheader("Source Control")
@@ -395,11 +404,12 @@ if sas_code:    render_sas_preview(sas_code)
 if mapping_raw: render_mapping_preview(mapping_raw)
 
 # ── RUN BUTTON ────────────────────────────────────────────────────────────────
-can_run = sas_code is not None and bool(st.session_state.api_key_input)
+has_api_key = bool(st.session_state.api_key_input or secret_api_key)
+can_run = sas_code is not None and has_api_key
 if not can_run:
     missing = []
     if not sas_code:                       missing.append("Oracle SQL procedure")
-    if not st.session_state.api_key_input: missing.append("API key (sidebar)")
+    if not has_api_key:                    missing.append("API key (sidebar or Streamlit secrets)")
     st.info(f"Missing: {', '.join(missing)}")
 
 col_run, _ = st.columns([1, 4])
