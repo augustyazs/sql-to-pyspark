@@ -95,7 +95,7 @@ def call_llm(system_prompt: str, user_prompt: str, step_name: str = "") -> dict:
             response_format={"type": "json_object"},
         )
     except Exception as e:
-        print(f"\n  ❌ OpenAI API error [{step_name}] model={model}: {e}")
+        print(f"\n  [ERROR] OpenAI API error [{step_name}] model={model}: {e}")
         raise
     response_time = round(time.perf_counter() - t_start, 2)
     usage = response.usage

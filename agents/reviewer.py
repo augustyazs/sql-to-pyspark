@@ -21,6 +21,7 @@ def reviewer_node(state: GraphState) -> dict:
     )
 
     result = call_llm(REVIEWER_SYSTEM, user_prompt, step_name=f"reviewer_attempt{review_count}")
+    result = _normalize_review_result(result)
     review = ReviewResult(**result)
 
     errors   = [i for i in review.issues if i.severity == "error"]
@@ -41,3 +42,40 @@ def reviewer_node(state: GraphState) -> dict:
 
     status = "complete" if review.is_valid else "complete_with_warnings"
     return {"review": review, "review_count": review_count, "status": status}
+
+
+def _normalize_review_result(result: dict) -> dict:
+    """Accept minor schema drift from LLM and coerce to ReviewResult shape."""
+    if not isinstance(result, dict):
+        return {"is_valid": False, "issues": [{"file": "", "issue": "Reviewer returned invalid response type.", "severity": "error", "fix_suggestion": ""}], "summary": "Reviewer response was malformed."}
+
+    if "is_valid" not in result:
+        verdict = str(result.get("overall_verdict", "")).strip().lower()
+        result["is_valid"] = verdict in {"pass", "passed", "valid", "true", "ok"}
+
+    if "issues" not in result or not isinstance(result.get("issues"), list):
+        result["issues"] = []
+
+    normalized_issues = []
+    for raw in result["issues"]:
+        if isinstance(raw, str):
+            normalized_issues.append({
+                "file": "",
+                "issue": raw,
+                "severity": "warning",
+                "fix_suggestion": "",
+            })
+            continue
+        if not isinstance(raw, dict):
+            continue
+        normalized_issues.append({
+            "file": str(raw.get("file", raw.get("cell", raw.get("path", "")))),
+            "issue": str(raw.get("issue", raw.get("message", raw.get("finding", "Unspecified review issue")))),
+            "severity": str(raw.get("severity", "warning")).lower(),
+            "fix_suggestion": str(raw.get("fix_suggestion", raw.get("recommendation", ""))),
+        })
+
+    result["issues"] = normalized_issues
+    if "summary" not in result:
+        result["summary"] = str(result.get("review_summary", result.get("overall_summary", "Review completed.")))
+    return result

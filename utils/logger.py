@@ -42,7 +42,7 @@ def log_step(step_name: str, data, is_pydantic: bool = True):
     if path not in _current_run_logs:
         _current_run_logs.append(path)
 
-    print(f"  📝 Log: {path}")
+    print(f"  [LOG] {path}")
 
 
 def write_cost_summary(usage_log: list[dict], total: dict) -> Path:
@@ -84,5 +84,5 @@ def write_cost_summary(usage_log: list[dict], total: dict) -> Path:
     if path not in _current_run_logs:
         _current_run_logs.append(path)
 
-    print(f"  📝 Cost summary: {path}")
+    print(f"  [COST_LOG] {path}")
     return path

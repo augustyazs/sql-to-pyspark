@@ -114,7 +114,7 @@ def resolver_node(state: GraphState) -> dict:
         print(f"  Unresolved (kept original names): {unresolved_tables}")
     if warnings:
         for w in warnings:
-            print(f"  ⚠ {w}")
+            print(f"  [WARN] {w}")
 
     log_step("resolver_output", resolved)
 

@@ -28,7 +28,7 @@ def fixer_node(state: GraphState) -> dict:
 
     result = call_llm(FIX_SYSTEM, user_prompt, step_name="fixer")
 
-    # Log only what the LLM returned — targeted files only, not the full merged project
+    # Log only what the LLM returned - targeted files only, not the full merged project
     log_step(f"fixer_raw_{review_count}", result, is_pydantic=False)
 
     fixed_project = _merge_fix(project, result)
@@ -91,7 +91,7 @@ def _extract_files_to_fix(project: DbtProject, review) -> dict[str, str]:
 
     # Fallback: if nothing matched by name, send full project
     if not files:
-        print("  WARNING: no files matched error issue names — sending full project to fixer")
+        print("  WARNING: no files matched error issue names - sending full project to fixer")
         if project.notebook_cells:
             for idx, cell in enumerate(project.notebook_cells):
                 files[f"notebook/cell_{idx + 1}.py"] = cell.source

@@ -22,7 +22,7 @@ def write_output_node(state: GraphState) -> dict:
         project.notebook_name = f"{Path(source_name).stem}.ipynb"
     written = write_dbt_project(project, OUTPUTS_DIR)
     for f in written:
-        print(f"  ✓ {f}")
+        print(f"  [OK] {f}")
     return {"status": "done"}
 
 

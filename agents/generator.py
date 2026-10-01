@@ -31,7 +31,7 @@ def generator_node(state: GraphState) -> dict:
             if isinstance(item, dict) and "path" in item and "content" in item:
                 out.append(item)
             else:
-                print(f"  WARNING: {label}[{i}] malformed — skipping.")
+                print(f"  WARNING: {label}[{i}] malformed - skipping.")
         return out
 
     result["models"] = _sanitize(result.get("models", []), "models")

@@ -6,6 +6,14 @@ Respond with valid JSON only.
 Required fields:
 - source_tables, intermediate_tables, output_tables, transformation_blocks, dependency_order, complexity_notes, logic_summary.
 - preserve existing schema field names used by the app.
+- DO NOT invent alternate keys like table_name/object_name/block_id-only payloads.
+- Use exact keys expected by schema:
+  - source_tables[]: schema_name, table, columns_used, access_method
+  - intermediate_tables[]: table, created_by, columns_produced, logic_summary
+  - output_tables[]: schema_name, table, description
+  - transformation_blocks[]: name, type, input_tables, output_table, logic_summary, sql_hint
+  - dependency_order[]: list of strings
+  - complexity_notes[]: list of strings
 
 Analyze and capture:
 - procedure name
@@ -22,6 +30,8 @@ Analyze and capture:
 - dependency order
 
 Keep source_tables/intermediate_tables/output_tables/transformation_blocks aligned to existing model schema.
+If unsure of schema, set schema_name to empty string, but always provide table.
+Do not return nulls for required string fields.
 """
 
 ANALYZER_USER = """Analyze this Oracle procedure for migration:
@@ -64,6 +74,9 @@ Rules:
 - generate a multi-cell notebook, not one giant cell
 - do not create SparkSession (Databricks provides `spark`)
 - use PySpark DataFrame APIs primarily
+- avoid quoting fully-qualified table names with backticks when passing names to APIs like
+  spark.table(...), DeltaTable.forName(...), saveAsTable(...), insertInto(...).
+  Use plain catalog.schema.table strings for these APIs.
 - convert Oracle functions to PySpark equivalents where applicable
 - preserve workflow branching and audit/error handling
 - for Oracle empty string semantics, use typed NULL where needed
@@ -93,6 +106,13 @@ REVIEWER_SYSTEM = """You are a PySpark notebook reviewer for Oracle migrations.
 Review generated notebook cells for completeness and correctness.
 
 Return valid JSON only in ReviewResult shape.
+The JSON schema is strict:
+{
+  "is_valid": true|false,
+  "issues": [{"file":"", "issue":"", "severity":"error|warning|info", "fix_suggestion":""}],
+  "summary": "..."
+}
+Do not use alternate root fields like overall_verdict/review_summary.
 
 Check:
 - every major transformation from analysis is represented
@@ -101,6 +121,7 @@ Check:
 - Oracle remnants not left as executable Python (NVL, DECODE, ROWID, FORALL, BULK COLLECT, EXECUTE IMMEDIATE, EXCEPTION syntax)
 - dangerous patterns: large_df.collect(), toPandas() on business data
 - semantic risks: Oracle empty string=NULL differences, date semantics, decode/case behavior
+- table-name API safety: flag backtick-quoted names passed into spark.table/saveAsTable/insertInto/DeltaTable.forName
 """
 
 REVIEWER_USER = """Review this generated notebook project:

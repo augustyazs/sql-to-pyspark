@@ -24,6 +24,6 @@ def documenter_node(state: GraphState) -> dict:
     )
 
     doc_path = write_sas_documentation(sas_documentation, DOC_OUTPUT_DIR)
-    print(f"  ✓ Documentation written: {doc_path}")
+    print(f"  [OK] Documentation written: {doc_path}")
 
     return {"sas_documentation": sas_documentation}
