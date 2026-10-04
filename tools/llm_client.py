@@ -9,6 +9,8 @@ from config.settings import (
     OPENAI_MODEL_STTM, OPENAI_MODEL_ARCHITECT,
 )
 
+OPENAI_TIMEOUT_SECONDS = float(os.environ.get("OPENAI_TIMEOUT_SECONDS", "600"))
+
 _client = None
 _usage_log = []
 
@@ -20,7 +22,8 @@ def _get_client() -> OpenAI:
     if not key:
         raise RuntimeError("OPENAI_API_KEY not set. Enter it in the sidebar.")
     if _client is None or _client.api_key != key:
-        _client = OpenAI(api_key=key)
+        # Explicit timeout so a stalled request fails visibly instead of hanging the UI.
+        _client = OpenAI(api_key=key, timeout=OPENAI_TIMEOUT_SECONDS, max_retries=2)
     return _client
 
 

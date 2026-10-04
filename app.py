@@ -1,3 +1,4 @@
+import html
 import json
 import os
 import streamlit as st
@@ -261,6 +262,8 @@ with st.sidebar:
         os.environ["OPENAI_API_KEY"] = api_key_input
     elif secret_api_key:
         st.caption("Using OPENAI_API_KEY from Streamlit secrets.")
+    elif os.environ.get("OPENAI_API_KEY"):
+        st.caption("Using OPENAI_API_KEY from server environment (.env).")
 
     st.divider()
     st.subheader("Source Control")
@@ -358,12 +361,14 @@ with tab_upload:
 if sas_code:    render_sas_preview(sas_code)
 
 # ── RUN BUTTON ────────────────────────────────────────────────────────────────
-has_api_key = bool(st.session_state.api_key_input or secret_api_key)
+has_api_key = bool(
+    st.session_state.api_key_input or secret_api_key or os.environ.get("OPENAI_API_KEY")
+)
 can_run = sas_code is not None and has_api_key
 if not can_run:
     missing = []
     if not sas_code:                       missing.append("Oracle SQL procedure")
-    if not has_api_key:                    missing.append("API key (sidebar or Streamlit secrets)")
+    if not has_api_key:                    missing.append("API key (sidebar, Streamlit secrets or .env)")
     st.info(f"Missing: {', '.join(missing)}")
 
 col_run, _ = st.columns([1, 4])
@@ -434,16 +439,14 @@ with col_main:
                     with tab:
                         try:
                             content = json.loads(log_file.read_text(encoding="utf-8"))
-                            st.markdown(
-                                f'<div class="log-box">{json.dumps(content, indent=2)}</div>',
-                                unsafe_allow_html=True,
-                            )
-                        except Exception:
-                            raw = log_file.read_text(encoding="utf-8")
-                            st.markdown(
-                                f'<div class="log-box">{raw[:5000]}</div>',
-                                unsafe_allow_html=True,
-                            )
+                            rendered = json.dumps(content, indent=2)
+                        except (OSError, ValueError):
+                            rendered = log_file.read_text(encoding="utf-8", errors="replace")[:5000]
+                        # Logs contain LLM output and SQL (<, >, &); escape before injecting as HTML.
+                        st.markdown(
+                            f'<div class="log-box">{html.escape(rendered)}</div>',
+                            unsafe_allow_html=True,
+                        )
             else:
                 _waiting_placeholder("Pipeline logs")
 
@@ -471,7 +474,15 @@ with col_main:
         # Status footer
         if pipeline_done:
             final_status = final_state.get("status", "unknown")
-            if final_status in ("done", "complete", "complete_with_warnings"):
+            final_review = final_state.get("review")
+            review_unresolved = final_review is not None and not final_review.is_valid
+            if final_status in ("done", "complete", "complete_with_warnings") and review_unresolved:
+                st.markdown(
+                    '<div class="status-bar warn">⚠️ &nbsp; Pipeline finished, but the reviewer still reports '
+                    'unresolved errors — manual review of the notebook is required</div>',
+                    unsafe_allow_html=True,
+                )
+            elif final_status in ("done", "complete", "complete_with_warnings"):
                 st.markdown(
                     '<div class="status-bar done">✅ &nbsp; Pipeline run finished successfully</div>',
                     unsafe_allow_html=True,

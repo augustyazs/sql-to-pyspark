@@ -406,4 +406,4 @@ def render_cost_summary(cost_data: dict):
             cols[0].write(entry["step"])
             cols[1].write(f"{entry['input_tokens']:,}")
             cols[2].write(f"{entry['output_tokens']:,}")
-            cols[3].write(f"${entry['cost_usd']:.2f}")
+            cols[3].write(f"${entry['cost_usd']:.4f}")
